@@ -29,7 +29,11 @@ object Forms {
   ): FieldFormlet[M, Option[A]] =
     Formlet { c =>
       val result = optionT[NonEmptyList[String] \/ ?](
-        c.field(name).filterNot(_.isNull).right[NonEmptyList[String]]
+        c
+          .flatMap(_.downField(name))
+          .map(_.focus)
+          .filterNot(_.isNull)
+          .right[NonEmptyList[String]]
       ).flatMapF(j =>
         j.right[NonEmptyList[String]].ensure(
           NonEmptyList(s"Field $name must be a(n) $descr")
@@ -47,7 +51,7 @@ object Forms {
     name: String,
     inner: JsonFormlet[M, E, A, V]
   ): JsonFormlet[M, E, A, V] =
-    Formlet(c => inner.run(c.field(name).getOrElse(jNull)))
+    Formlet(c => inner.run(c.flatMap(_.downField(name))))
 
   def nestedM[M[_] : Functor, A, V <: JsonBuilder](
     name: String,
@@ -65,12 +69,21 @@ object Forms {
     implicit M: Applicative[M]
   ): JsonFormlet[M, ValidationErrors, List[A], JsonArrayBuilder] =
     Formlet { c =>
-      val l =
-        if (c.isNull)
+      val l: List[(Option[Cursor], ObjectFormlet[M, A])] =
+        if (c.isEmpty)
           defaultValue.map((c, _))
-        else
-          // XXX should error on non-array
-          c.array.toList.join.map((_, template))
+        else {
+          type X = Vector[(Option[Cursor], ObjectFormlet[M, A])]
+          c
+            .flatMap(_.downArray)
+            .map(
+              _.traverseBreak(
+                Kleisli[State[X, ?], Cursor, Option[Cursor]](c =>
+                  State(l => (l :+ (c.some, template), c.left)))
+              ).apply(Vector()).toList
+            )
+            .getOrElse(Nil)
+        }
 
       val X = M
         .compose[Tuple2[JsonArrayBuilder, ?]]

@@ -19,12 +19,12 @@ import gov.wicourts.json.formlet.Forms.Id._
 import gov.wicourts.json.formlet.syntax._
 
 class FormsSpec extends Specification {
-  private def parse(s: String): Json =
-    Parse.parseOption(s).getOrElse(throw new Exception("Unexpected parse failure"))
+  private def parse(s: String): Option[Cursor] =
+    Parse.parseOption(s).getOrElse(throw new Exception("Unexpected parse failure")).cursor.some
 
   "A string form" >> {
     "should be able to render its value" >> {
-      val view = string("nameL", "Smith".some).view(jNull)
+      val view = string("nameL", "Smith".some).view(None)
       view.toJson.nospaces must_== """{"nameL":{"value":"Smith"}}"""
     }
 
@@ -61,19 +61,19 @@ class FormsSpec extends Specification {
     }
 
     "should omit the value from the rendered view if value is not defined" >> {
-      val view = string("nameL", None).view(jNull)
+      val view = string("nameL", None).view(None)
 
       view.toJson.nospaces must_== "{}"
     }
 
     "can be assigned a label" >> {
-      val view = string("nameL", None).label("Last name").view(jNull)
+      val view = string("nameL", None).label("Last name").view(None)
 
       view.toJson.nospaces must_== """{"nameL":{"metadata":{"label":"Last name"}}}"""
     }
 
     "can be required" >> {
-      val a = string("nameL", None).required.eval(jNull)
+      val a = string("nameL", None).required.eval(None)
 
       a must_== NonEmptyList("This field is required").failure
     }
@@ -91,13 +91,13 @@ class FormsSpec extends Specification {
     }
 
     "can be lifted" >> {
-      val r = string("nameL", "Smith".some).lift[Option].eval(jNull)
+      val r = string("nameL", "Smith".some).lift[Option].eval(None)
 
       r must_== Some(None.success)
     }
 
     "can be lifted (id)" >> {
-      val r = string("nameL", "Smith".some).liftId[Option].eval(jNull)
+      val r = string("nameL", "Smith".some).liftId[Option].eval(None)
 
       r must_== Some(None.success)
     }
@@ -106,14 +106,14 @@ class FormsSpec extends Specification {
       val r = string("nameL", None)
         .mapValidation(o => "Nope".failureNel[String])
         .errorName("nameLOther")
-      val results = r.obj.eval(jNull)
+      val results = r.obj.eval(None)
       results.leftMap(_.toJson.nospaces) must_== """{"nameLOther":["Nope"]}""".failure
     }
   }
 
   "A string array form" >> {
     "should be able to render its value" >> {
-      val view = listOfString("colors", List("red", "blue", "green").some).view(jNull)
+      val view = listOfString("colors", List("red", "blue", "green").some).view(None)
       view.toJson.nospaces must_== """{"colors":{"value":["red","blue","green"]}}"""
     }
 
@@ -153,7 +153,7 @@ class FormsSpec extends Specification {
   "A composite form example" >> {
 
     "should be able to render initial data" >> {
-      val view = fullNameForm(FullName("Jack".some, "Sprat".some)).view(jNull)
+      val view = fullNameForm(FullName("Jack".some, "Sprat".some)).view(None)
 
       view.toJson.nospaces must_== """{"nameL":{"value":"Sprat"},"nameF":{"value":"Jack"}}"""
     }
@@ -251,7 +251,7 @@ class FormsSpec extends Specification {
     "can be nested" >> {
       "and should be able to render initial data" >> {
         val fullName = FullName("Jack".some, "Sprat".some)
-        val view = nested("fullName", fullNameForm(fullName)).view(jNull)
+        val view = nested("fullName", fullNameForm(fullName)).view(None)
 
         val json = """{"fullName":{"nameL":{"value":"Sprat"},"nameF":{"value":"Jack"}}}"""
         view.toJson.nospaces must_== json
@@ -286,7 +286,7 @@ class FormsSpec extends Specification {
     )
 
     "should be able to render initial data" >> {
-      val view = fullNames.view(jNull)
+      val view = fullNames.view(None)
 
       val expected = """[{"nameL":{"value":"Sprat"},"nameF":{"value":"Jack"}},{"nameL":{"value":"Smith"},"nameF":{"value":"Jill"}}]"""
 
