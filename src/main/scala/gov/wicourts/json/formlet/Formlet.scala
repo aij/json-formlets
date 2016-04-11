@@ -16,6 +16,27 @@ import scala.language.higherKinds
 
 import Predef.identity
 
+/**
+  A helper class to help define different formlet implementations.
+
+  A wrapper around functions that should be interpreted as formlets.
+
+  This is based on "The Essense of Form Abstraction", Ezra Cooper et al.
+
+  Rather than providing a concrete implementation, we based this off
+  of the factored formlets implementation, while leaving the
+  implementation of Namer, Environment, and XmlWriter abstract. You
+  can think of this kind of as a functor (in the ML sense), which will
+  give you a formlet implementation when given suitable
+  implementations of Namer, Environment, and XmlWriter.
+
+  @param M If you actually want the result to be a proper formlet, this should be a an Applicative Functor (aka Idiom). Use Id to match the paper, but you can use other type constructors like Function[Foo, ?] or Kleisli if you would like the run function to take additional arguments.
+  @param I The type of the environment? Use Option[Cursor] for [JsonFormlet]s
+  @param E The type used to represent errors.
+  @param A The type of value stored in the formlet. (Ie, the α in `type α t` from the paper.)
+  @param V The view type. As in, the output that will be sent to the user. (aka xml in the paper)
+  @param run The run function from the formlet paper. Rather than supplying one yourself, you can build a formlet through the helper function in ???.
+  */
 case class Formlet[M[_], I, E, A, V](run: I => M[(Validation[E, A], V)]) {
   def eval(i: I)(implicit M: Functor[M]): M[Validation[E, A]] =
     M.map(run(i))(_._1)
@@ -34,9 +55,8 @@ case class Formlet[M[_], I, E, A, V](run: I => M[(Validation[E, A], V)]) {
 
   def mapK[G[_], EE, AA, VV](
     f: M[(Validation[E, A], V)] => G[(Validation[EE, AA], VV)]
-  ): Formlet[G, I, EE, AA, VV] = Formlet(c =>
-    f(run(c))
-  )
+  ): Formlet[G, I, EE, AA, VV] =
+    Formlet(f compose run)
 
   def mapK_[G[_], B](
     f: M[(Validation[E, A], V)] => G[(Validation[E, B], V)]
